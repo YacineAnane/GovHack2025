@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Housing Stress Map</title>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <style>
+    #map { width:100%; height:600px; }
+    #searchBar { margin: 10px; }
+  </style>
+</head>
+<body>
+  <h2>Housing Stress & Public Transport Stops</h2>
+
+  <div id="searchBar">
+    <input type="text" id="address" placeholder="Enter an address in Victoria" size="50">
+    <button onclick="searchAddress()">Search</button>
+  </div>
+
+  <div id="map"></div>
+
+  <script>
+    let baseTraces = [];   // all transport stops
+    let layout;            // map layout
+    let allStops = [];     // raw stops for distance check
+
+    // Load local GeoJSON for transport stops
+    fetch("/static/public_transport_stops.geojson")
+      .then(res => res.json())
+      .then(data => {
+        const grouped = {};
+        data.features.forEach(f => {
+          const mode = f.properties.MODE;
+          if (!grouped[mode]) grouped[mode] = { lats: [], lons: [], names: [] };
+          grouped[mode].lats.push(f.geometry.coordinates[1]);
+          grouped[mode].lons.push(f.geometry.coordinates[0]);
+          grouped[mode].names.push(f.properties.STOP_NAME);
+
+          // keep raw stops for nearest calculation
+          allStops.push({
+            lat: f.geometry.coordinates[1],
+            lon: f.geometry.coordinates[0],
+            name: f.properties.STOP_NAME,
+            mode: f.properties.MODE
+          });
+        });
+
+        const modeStyles = {
+          "REGIONAL TRAIN":   { color: "red" },
+          "INTERSTATE TRAIN": { color: "purple" },
+          "SKYBUS":           { color: "black" },
+          "METRO TRAIN":      { color: "grey" },
+          "METRO TRAM":       { color: "" },
+          "METRO BUS":        { color: "blue" },
+          "REGIONAL COACH":   { color: "brown" },
+          "REGIONAL BUS":     { color: "orange" }
+        };
+
+        baseTraces = Object.keys(grouped).map(mode => {
+          const style = modeStyles[mode] || { color: "lightgrey" };
+          return {
+            type: "scattermapbox",
+            lat: grouped[mode].lats,
+            lon: grouped[mode].lons,
+            text: grouped[mode].names,
+            hoverinfo: "text",
+            mode: "markers",
+            name: mode,
+            marker: { size: 7, color: style.color }
+          };
+        });
+
+        layout = {
+          mapbox: {
+            style: "open-street-map",
+            zoom: 7,
+            center: { lat: -37.8, lon: 145.0 }
+          },
+          margin: { r:0, t:0, l:0, b:0 },
+          legend: { orientation: "h", y: -0.2 }
+        };
+
+        Plotly.newPlot("map", baseTraces, layout);
+      });
+
+    // Haversine distance (km)
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371; // km
+      const dLat = (lat2 - lat1) * Math.PI/180;
+      const dLon = (lon2 - lon1) * Math.PI/180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    // 🔹 Search Address + Nearest Stop + Schools
+    function searchAddress() {
+      const addr = document.getElementById("address").value;
+      if (!addr) return alert("Enter an address!");
+
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr + " Victoria Australia")}`)
+        .then(res => res.json())
+        .then(results => {
+			console.log(results)
+          if (results.length === 0) {
+            alert("Address not found!");
+            return;
+          }
+          const lat = parseFloat(results[0].lat);
+          const lon = parseFloat(results[0].lon);
+
+          // Recenter map
+          layout.mapbox.center = { lat: lat, lon: lon };
+          layout.mapbox.zoom = 14;
+
+          // Find nearest stop
+          let nearest = null;
+          let minDist = Infinity;
+          allStops.forEach(stop => {
+            const d = haversine(lat, lon, stop.lat, stop.lon);
+            if (d < minDist) {
+              minDist = d;
+              nearest = stop;
+            }
+          });
+          const distKm = minDist.toFixed(2);
+
+          // Address marker
+          const searchMarker = {
+            type: "scattermapbox",
+            lat: [lat],
+            lon: [lon],
+            text: ["📍 " + addr],
+            hoverinfo: "text",
+            mode: "markers",
+            name: "Search Location",
+            marker: { size: 14, color: "red" }
+          };
+
+          // Nearest stop marker
+          const nearestMarker = {
+            type: "scattermapbox",
+            lat: [nearest.lat],
+            lon: [nearest.lon],
+            text: [`Nearest Stop: ${nearest.name} (${nearest.mode})<br>Distance: ${distKm} km`],
+            hoverinfo: "text",
+            mode: "markers",
+            name: "Nearest Stop",
+            marker: { size: 14, color: "yellow" }
+          };
+
+          // 🔹 Schools API call
+          // Use 'q' param to search by suburb in the address
+          const suburb = results[0].display_name.split(",")[2]?.trim();
+		  console.log(suburb)
+          fetch(`https://discover.data.vic.gov.au/api/3/action/datastore_search?resource_id=d26bf015-a1e5-48dd-a1d6-8edd4b0a511b&q=${encodeURIComponent(suburb)}`)
+            .then(res => res.json())
+            .then(apiData => {
+				console.log(apiData)
+              let schoolMarkers = [];
+              if (apiData.result && apiData.result.records.length > 0) {
+                const schoolLats = apiData.result.records.map(r => parseFloat(r.Y));
+                const schoolLons = apiData.result.records.map(r => parseFloat(r.X));
+                const schoolNames = apiData.result.records.map(r => r.School_Name);
+				console.log(schoolLats)
+				console.log(schoolLons)
+				console.log(schoolNames)
+                schoolMarkers = [{
+                  type: "scattermapbox",
+                  lat: schoolLats,
+                  lon: schoolLons,
+                  text: schoolNames,
+                  hoverinfo: "text",
+                  mode: "markers",
+                  name: "Schools",
+                  marker: { size: 10, color: "green" }
+                }];
+              }
+
+              // Combine everything
+              Plotly.newPlot("map", [...baseTraces, searchMarker, nearestMarker, ...schoolMarkers], layout);
+            });
+        });
+    }
+  </script>
+</body>
+</html>
