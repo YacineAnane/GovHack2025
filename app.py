@@ -1,11 +1,27 @@
 from flask import Flask, render_template, jsonify
 import requests
 import json
+
+from permits_plots import plot_permits_choropleth
+
+
+
 app = Flask(__name__)
 
 @app.route("/")
 def home():
     return render_template("index.html")
+
+
+@app.route("/testing")
+def testing():
+    # Call your plotting function
+    fig = plot_permits_choropleth("All")
+
+    # Convert to HTML (includes JS for interactivity)
+    fig_html = fig.to_html(full_html=False)
+
+    return render_template("testing.html", plot=fig_html)
 
 
 @app.route("/api/public_transport")
