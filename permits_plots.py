@@ -65,7 +65,7 @@ def prepare_data():
         permit_count=('permit_stage_number','count'),
         total_cost=('Reported_Cost_of_works','sum'),
         mean_cost=('Reported_Cost_of_works','mean'),
-        dommestic_count=('BASIS_Building_Use', lambda x: (x=='Domestic').sum()),
+        domestic_count=('BASIS_Building_Use', lambda x: (x=='Domestic').sum()),
         public_count=('BASIS_Building_Use', lambda x: (x=='Public Buildings').sum()),
         industrial_count=('BASIS_Building_Use', lambda x: (x=='Industrial').sum()),
         commercial_count=('BASIS_Building_Use', lambda x: (x=='Commercial').sum()),
@@ -105,3 +105,120 @@ def plot_permits_choropleth(permits_category='All'):
     )
     fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
     return fig
+
+# ---------- new plotting helpers ----------
+
+def plot_permit_sunburst(
+    levels=('BASIS_Building_Use', 'BASIS_NOW', 'BASIS_Ownership_Sector'),
+    unknown_label='Unknown'
+):
+    """
+    Sunburst showing hierarchy: Building Use -> Nature Of Works -> Ownership Sector.
+    Groups by the provided levels and uses counts as the value.
+    Returns a plotly.express.sunburst figure.
+    """
+    # load permits
+    df = pd.read_excel(permits_file_path, sheet_name="Sheet1", engine="pyxlsb")
+
+    # keep only columns that exist, replace missing columns with filler levels
+    used_levels = []
+    for l in levels:
+        if l in df.columns:
+            used_levels.append(l)
+        else:
+            # create an artificial column with 'Unknown' so sunburst still works
+            df[l] = unknown_label
+            used_levels.append(l)
+
+    # Normalise missing values for grouping
+    df[used_levels] = df[used_levels].fillna(unknown_label).astype(str)
+
+    # Group and count
+    grouped = df.groupby(used_levels).size().reset_index(name='count')
+
+    # build sunburst
+    fig = px.sunburst(
+        grouped,
+        path=used_levels,
+        values='count',
+        title='Distribution of Permits: Use → Nature of Works → Ownership Sector',
+        hover_data={'count': True}
+    )
+    fig.update_layout(margin={"r":0,"t":30,"l":0,"b":0})
+    return fig
+
+
+def plot_distributions(
+    permits_file_path,
+    metrics=None,
+    bins=60,
+    log_scale=False,
+    dropna=True
+):
+    """
+    Create distributions (histogram + boxplot) for selected numeric columns.
+    Returns a list of tuples (metric_name, hist_fig, box_fig).
+    metrics: list of column names (defaults to common cost/area columns)
+    log_scale: if True, apply log10 to data for plotting (useful for costs).
+    """
+    if metrics is None:
+        metrics = [
+            'Reported_Cost_of_works',
+            'Total_Estimated_Cost_of_Works__c',
+            'Total_Floor_Area__c'
+        ]
+
+    df = pd.read_excel(permits_file_path, sheet_name="Sheet1", engine="pyxlsb")
+    out = []
+
+    for metric in metrics:
+        if metric not in df.columns:
+            # skip absent columns but keep user informed
+            print(f"[plot_distributions] skipped missing column: {metric}")
+            continue
+
+        # coerce to numeric; many datasets have strings/commas
+        col = pd.to_numeric(df[metric].astype(str).str.replace(',', ''), errors='coerce')
+
+        if dropna:
+            col = col.dropna()
+
+        if col.empty:
+            print(f"[plot_distributions] no numeric data for: {metric}")
+            continue
+
+        plot_series = col.copy()
+        if log_scale:
+            # add small positive offset to avoid log(0)
+            plot_series = plot_series[plot_series > 0]  # remove non-positive values for log
+            plot_series = np.log10(plot_series)
+
+        plot_df = plot_series.to_frame(name=metric)
+
+        # Histogram
+        hist_title = f"Histogram of {metric}" + (" (log10)" if log_scale else "")
+        hist_fig = px.histogram(
+            plot_df,
+            x=metric,
+            nbins=bins,
+            marginal="rug",
+            title=hist_title,
+            labels={metric: metric}
+        )
+        hist_fig.update_layout(margin={"r":0,"t":30,"l":0,"b":0})
+
+        # Boxplot (vertical)
+        box_title = f"Boxplot of {metric}" + (" (log10)" if log_scale else "")
+        box_fig = px.box(
+            plot_df,
+            y=metric,
+            points="outliers",
+            title=box_title,
+            labels={metric: metric}
+        )
+        box_fig.update_layout(margin={"r":0,"t":30,"l":0,"b":0})
+
+        out.append((metric, hist_fig, box_fig))
+
+    return out
+
