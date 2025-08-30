@@ -6,43 +6,46 @@
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
   <style>
     #map { width:100%; height:600px; }
-    #searchBar { margin: 10px; }
+    #searchBar { margin: 10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    input[type="text"], input[type="number"] { padding:8px; }
+    button { padding:8px 12px; }
   </style>
 </head>
 <body>
-  <h2>Housing Stress & Public Transport Stops</h2>
+  <h2>Housing Stress, Public Transport, Bicycle Paths & Facilities</h2>
 
   <div id="searchBar">
     <input type="text" id="address" placeholder="Enter an address in Victoria" size="50">
-    <button onclick="searchAddress()">Search</button>
+    <label>Radius (km):
+      <input type="number" id="radiusKm" value="2" min="0.5" step="0.5" style="width:80px;">
+    </label>
+    <label><input type="checkbox" id="showFacilities" checked> Community facilities</label>
+    <input type="text" id="facilitiesQuery" placeholder="Filter facilities (e.g. pool, library)" size="24">
+    <button id="goBtn">Search</button>
   </div>
 
   <div id="map"></div>
 
   <script>
-    let baseTraces = [];   // all transport stops
-    let layout;            // map layout
-    let allStops = [];     // raw stops for distance check
+    let baseTraces = [];    // PT stop layers
+    let layout;             // plot layout
+    let allStops = [];      // raw PT stops for nearest calc
 
-    // Load local GeoJSON for transport stops
-    fetch("/static/public_transport_stops.geojson")
+    // Load PT stops via Flask
+    fetch("/api/public_transport")
       .then(res => res.json())
       .then(data => {
         const grouped = {};
         data.features.forEach(f => {
           const mode = f.properties.MODE;
           if (!grouped[mode]) grouped[mode] = { lats: [], lons: [], names: [] };
-          grouped[mode].lats.push(f.geometry.coordinates[1]);
-          grouped[mode].lons.push(f.geometry.coordinates[0]);
+          const lat = f.geometry.coordinates[1];
+          const lon = f.geometry.coordinates[0];
+          grouped[mode].lats.push(lat);
+          grouped[mode].lons.push(lon);
           grouped[mode].names.push(f.properties.STOP_NAME);
 
-          // keep raw stops for nearest calculation
-          allStops.push({
-            lat: f.geometry.coordinates[1],
-            lon: f.geometry.coordinates[0],
-            name: f.properties.STOP_NAME,
-            mode: f.properties.MODE
-          });
+          allStops.push({ lat, lon, name: f.properties.STOP_NAME, mode });
         });
 
         const modeStyles = {
@@ -71,11 +74,7 @@
         });
 
         layout = {
-          mapbox: {
-            style: "open-street-map",
-            zoom: 7,
-            center: { lat: -37.8, lon: 145.0 }
-          },
+          mapbox: { style: "open-street-map", zoom: 7, center: { lat: -37.8, lon: 145.0 } },
           margin: { r:0, t:0, l:0, b:0 },
           legend: { orientation: "h", y: -0.2 }
         };
@@ -83,107 +82,173 @@
         Plotly.newPlot("map", baseTraces, layout);
       });
 
-    // Haversine distance (km)
+    // Utilities
     function haversine(lat1, lon1, lat2, lon2) {
-      const R = 6371; // km
-      const dLat = (lat2 - lat1) * Math.PI/180;
-      const dLon = (lon2 - lon1) * Math.PI/180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
+      const R = 6371, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+      const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+      return 2*R*Math.asin(Math.sqrt(a));
     }
 
-    // 🔹 Search Address + Nearest Stop + Schools
+    function lineFeatureToLatLonArrays(geometry) {
+      const lats = [], lons = [];
+      if (geometry.type === "LineString") {
+        geometry.coordinates.forEach(([lon, lat]) => { lats.push(lat); lons.push(lon); });
+        lats.push(null); lons.push(null);
+      } else if (geometry.type === "MultiLineString") {
+        geometry.coordinates.forEach(seg => {
+          seg.forEach(([lon, lat]) => { lats.push(lat); lons.push(lon); });
+          lats.push(null); lons.push(null);
+        });
+      }
+      return { lats, lons };
+    }
+
+    function buildBikeTraces(geojson) {
+      if (!geojson || !geojson.features) return [];
+      const groups = {};
+      geojson.features.forEach(f => {
+        const infra = f.properties?.InfraType || "Bicycle infrastructure";
+        if (!groups[infra]) groups[infra] = { lats: [], lons: [], texts: [] };
+        const { lats, lons } = lineFeatureToLatLonArrays(f.geometry);
+        groups[infra].lats.push(...lats);
+        groups[infra].lons.push(...lons);
+        groups[infra].texts.push((f.properties?.Name || "") + (f.properties?.HwyType ? " · " + f.properties.HwyType : ""));
+      });
+      return Object.keys(groups).map(infra => ({
+        type: "scattermapbox",
+        mode: "lines",
+        name: infra,
+        lat: groups[infra].lats,
+        lon: groups[infra].lons,
+        hoverinfo: "text",
+        text: groups[infra].texts,
+        line: { width: 3 }
+      }));
+    }
+
+    function buildFacilityTraces(geojson) {
+    if (!geojson || !geojson.features) return { traces: [], count: 0 };
+
+    const lats = [], lons = [], texts = [];
+    for (const f of geojson.features) {
+      const coords = f?.geometry?.coordinates;
+      if (!Array.isArray(coords) || coords.length < 2) continue;
+      const lon = Number(coords[0]), lat = Number(coords[1]);
+      if (!isFinite(lat) || !isFinite(lon)) continue;
+      lats.push(lat); lons.push(lon);
+
+      const name = f.properties?.["Facility Name"] || f.properties?.["Name"] || "Facility";
+      const lga  = f.properties?.["LGA Name"] || "";
+      texts.push(`${name}${lga ? " – " + lga : ""}`);
+    }
+
+    if (lats.length === 0) {
+      return { traces: [], count: 0 };   // <- DO NOT add a legend entry if no points
+    }
+
+    return {
+      count: lats.length,
+      traces: [{
+        type: "scattermapbox",
+        mode: "markers",
+        name: "Community facilities",
+        lat: lats,
+        lon: lons,
+        text: texts,
+        hoverinfo: "text",
+        marker: { size: 14, symbol: "star" }  // visible + distinct
+      }]
+    };
+  }
+
+    // Search + plot everything
     function searchAddress() {
-      const addr = document.getElementById("address").value;
+      const addr = document.getElementById("address").value.trim();
+      const radiusKm = parseFloat(document.getElementById("radiusKm").value) || 2.0;
+      const showFacilities = document.getElementById("showFacilities").checked;
+      const q = (document.getElementById("facilitiesQuery").value || "").trim();
       if (!addr) return alert("Enter an address!");
 
       fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr + " Victoria Australia")}`)
         .then(res => res.json())
         .then(results => {
-			console.log(results)
-          if (results.length === 0) {
-            alert("Address not found!");
-            return;
-          }
+          if (!results.length) { alert("Address not found!"); return; }
           const lat = parseFloat(results[0].lat);
           const lon = parseFloat(results[0].lon);
 
-          // Recenter map
-          layout.mapbox.center = { lat: lat, lon: lon };
+          layout.mapbox.center = { lat, lon };
           layout.mapbox.zoom = 14;
 
-          // Find nearest stop
-          let nearest = null;
-          let minDist = Infinity;
-          allStops.forEach(stop => {
-            const d = haversine(lat, lon, stop.lat, stop.lon);
-            if (d < minDist) {
-              minDist = d;
-              nearest = stop;
-            }
+          // nearest PT
+          let nearest = null, minDist = Infinity;
+          allStops.forEach(s => {
+            const d = haversine(lat, lon, s.lat, s.lon);
+            if (d < minDist) { minDist = d; nearest = s; }
           });
           const distKm = minDist.toFixed(2);
 
-          // Address marker
           const searchMarker = {
-            type: "scattermapbox",
-            lat: [lat],
-            lon: [lon],
-            text: ["📍 " + addr],
-            hoverinfo: "text",
-            mode: "markers",
-            name: "Search Location",
+            type: "scattermapbox", lat:[lat], lon:[lon],
+            text: ["📍 " + addr], hoverinfo: "text",
+            mode: "markers", name: "Search Location",
             marker: { size: 14, color: "red" }
           };
-
-          // Nearest stop marker
           const nearestMarker = {
-            type: "scattermapbox",
-            lat: [nearest.lat],
-            lon: [nearest.lon],
-            text: [`Nearest Stop: ${nearest.name} (${nearest.mode})<br>Distance: ${distKm} km`],
-            hoverinfo: "text",
-            mode: "markers",
-            name: "Nearest Stop",
-            marker: { size: 14, color: "yellow" }
+            type: "scattermapbox", lat:[nearest.lat], lon:[nearest.lon],
+            text:[`Nearest Stop: ${nearest.name} (${nearest.mode})<br>Distance: ${distKm} km`],
+            hoverinfo:"text", mode:"markers", name:"Nearest Stop",
+            marker:{ size:14, color:"yellow" }
           };
 
-          // 🔹 Schools API call
-          // Use 'q' param to search by suburb in the address
-          const suburb = results[0].display_name.split(",")[2]?.trim();
-		  console.log(suburb)
-          fetch(`https://discover.data.vic.gov.au/api/3/action/datastore_search?resource_id=d26bf015-a1e5-48dd-a1d6-8edd4b0a511b&q=${encodeURIComponent(suburb)}`)
+          // Schools (by suburb parsed from display_name)
+          const suburb = results[0].display_name.split(",")[2]?.trim() || "";
+          const schoolsPromise = fetch(`https://discover.data.vic.gov.au/api/3/action/datastore_search?resource_id=d26bf015-a1e5-48dd-a1d6-8edd4b0a511b&q=${encodeURIComponent(suburb)}`)
             .then(res => res.json())
             .then(apiData => {
-				console.log(apiData)
-              let schoolMarkers = [];
-              if (apiData.result && apiData.result.records.length > 0) {
-                const schoolLats = apiData.result.records.map(r => parseFloat(r.Y));
-                const schoolLons = apiData.result.records.map(r => parseFloat(r.X));
-                const schoolNames = apiData.result.records.map(r => r.School_Name);
-				console.log(schoolLats)
-				console.log(schoolLons)
-				console.log(schoolNames)
-                schoolMarkers = [{
-                  type: "scattermapbox",
-                  lat: schoolLats,
-                  lon: schoolLons,
-                  text: schoolNames,
-                  hoverinfo: "text",
-                  mode: "markers",
-                  name: "Schools",
-                  marker: { size: 10, color: "green" }
-                }];
-              }
+              if (!apiData.result || !apiData.result.records.length) return [];
+              const lats = apiData.result.records.map(r => parseFloat(r.Y));
+              const lons = apiData.result.records.map(r => parseFloat(r.X));
+              const names = apiData.result.records.map(r => r.School_Name);
+              return [{
+                type: "scattermapbox",
+                lat: lats, lon: lons, text: names,
+                hoverinfo: "text", mode: "markers",
+                name: "Schools", marker: { size: 10, color: "green" }
+              }];
+            }).catch(() => []);
 
-              // Combine everything
-              Plotly.newPlot("map", [...baseTraces, searchMarker, nearestMarker, ...schoolMarkers], layout);
-            });
+          const bikesPromise = fetch(`/api/bikes_radius?lat=${lat}&lon=${lon}&radius_km=${radiusKm}`)
+            .then(res => res.json())
+            .then(gj => buildBikeTraces(gj))
+            .catch(() => []);
+
+          const qParam = q ? `&q=${encodeURIComponent(q)}` : "";
+          const facilitiesPromise = showFacilities
+            ? fetch(`/api/facilities_radius?lat=${lat}&lon=${lon}&radius_km=${radiusKm}${qParam}`)
+                .then(res => res.json())
+                .then(gj => buildFacilityTraces(gj))
+                .catch(() => [])
+            : Promise.resolve([]);
+
+          Promise.all([schoolsPromise, bikesPromise, facilitiesPromise]).then(([schoolMarkers, bikeLines, facilityMarkers]) => {
+            const traces = [
+              ...baseTraces,
+              searchMarker,
+              nearestMarker,
+              ...(schoolMarkers || []),
+              ...(bikeLines || []),
+              ...(facilityMarkers || [])
+            ];
+            Plotly.newPlot("map", traces, layout);
+          });
         });
     }
+
+    // Button + Enter key
+    document.getElementById("goBtn").addEventListener("click", searchAddress);
+    document.getElementById("address").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") searchAddress();
+    });
   </script>
 </body>
 </html>
