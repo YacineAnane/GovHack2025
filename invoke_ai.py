@@ -24,7 +24,6 @@ def analyze_with_openai_client(prompt: str, *,
                                model: str = "gpt-4o-mini",
                                max_tokens: int = 5000,
                                temperature: float = 0.0):
-    api_key = api_key or os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("Set OPENAI_API_KEY or pass api_key=...")
 
@@ -49,37 +48,20 @@ def analyze_with_openai_client(prompt: str, *,
     """
     
     messages = [
-        {
-            "role": "system",
-            "content": [{"type": "text", "text": system_prompt}]  
-        },
-        {
-            "role": "user",
-            "content": [
-                {"type": "input_text", "text": prompt},
-                {"type": "image", "image_url": data_url}
-            ]
-        }
+        {"role": "system",
+         "content": [{"type": "text", "text": system_prompt}]},
+        {"role": "user",
+         "content": [
+             {"type": "text", "text": prompt},
+             {"type": "image_url", "image_url": {"url": data_url}}
+         ]}
     ]
 
     # call chat completions (or whichever chat endpoint your client version exposes)
-    resp = client.chat.completions.create(
+    response = client.chat.completions.create(
         model=model,
         messages=messages,
         max_tokens=max_tokens,
         temperature=temperature,
     )
-
-    # extract text robustly
-    choice = resp.choices[0]
-    msg = choice.message
-    content = msg.get("content")
-    if isinstance(content, str):
-        return content
-    elif isinstance(content, list):
-        # find first text part
-        for part in content:
-            if part.get("type") in (None, "output_text", "text"):
-                return part.get("text") or part.get("content") or ""
-    # fallback
-    return resp
+    return response.choices[0].message.content
