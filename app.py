@@ -180,8 +180,8 @@ def to_feature_collection(gdf: gpd.GeoDataFrame) -> dict:
 
 # ---------- Routes ----------
 @app.route("/")
-def root():
-    return render_template("housing-stress.html")
+def index():
+    return render_template("index.html")
 
 @app.route("/housing-stress")
 def housing_stress():
@@ -233,6 +233,30 @@ def api_facilities_radius():
         sub = sub[hay.str.contains(ql, na=False)]
 
     return jsonify(to_feature_collection(sub))
+
+
+@app.get("/api/facilities_all")
+def api_facilities_all():
+    """Return ALL facilities (optionally text-filtered with ?q=...)."""
+    gdf = FAC
+    if gdf.empty:
+        return jsonify({"type": "FeatureCollection", "features": []})
+
+    q = (request.args.get("q") or "").strip()
+    if q:
+        ql = q.lower()
+        candidate_cols = ["Facility Name", "Facility ID", "LGA Name",
+                          "Suburb/Town", "Street Name", "Name", "Facility", "Council"]
+        search_cols = [c for c in candidate_cols if c in gdf.columns]
+        if search_cols:
+            hay = gdf[search_cols].astype(str).apply(lambda r: " ".join(r.values.tolist()), axis=1).str.lower()
+        else:
+            fallback = next((c for c in ["Facility Name", "Name", "LGA Name", "Suburb/Town"] if c in gdf.columns), None)
+            hay = gdf[fallback].astype(str).str.lower() if fallback else pd.Series([""] * len(gdf), index=gdf.index)
+        gdf = gdf[hay.str.contains(ql, na=False)]
+
+    return jsonify(to_feature_collection(gdf))
+
 
 @app.get("/health")
 def health():
