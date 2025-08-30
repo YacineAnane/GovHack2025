@@ -1,4 +1,5 @@
 asttokens @ file:///croot/asttokens_1743630435401/work
+attrs==25.3.0
 certifi==2025.8.3
 comm @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_comm_1753453984/work
 contourpy==1.3.3
@@ -6,6 +7,7 @@ cycler==0.12.1
 debugpy @ file:///croot/debugpy_1736267418885/work
 decorator @ file:///opt/conda/conda-bld/decorator_1643638310831/work
 executing @ file:///opt/conda/conda-bld/executing_1646925071911/work
+fastjsonschema==2.21.2
 fonttools==4.59.2
 geopandas==1.1.1
 importlib_metadata @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_importlib-metadata_1747934053/work
@@ -13,11 +15,15 @@ ipykernel @ file:///home/conda/feedstock_root/build_artifacts/ipykernel_17543528
 ipython @ file:///croot/ipython_1744912971218/work
 ipython_pygments_lexers @ file:///croot/ipython_pygments_lexers_1744753235686/work
 jedi @ file:///croot/jedi_1733987392413/work
+jsonschema==4.25.1
+jsonschema-specifications==2025.4.1
 jupyter_client @ file:///home/conda/feedstock_root/build_artifacts/jupyter_client_1733440914442/work
 jupyter_core @ file:///home/conda/feedstock_root/build_artifacts/jupyter_core_1748333051527/work
 kiwisolver==1.4.9
 matplotlib==3.10.6
 matplotlib-inline @ file:///work/perseverance-python-buildout/croot/matplotlib-inline_1698864771271/work
+narwhals==2.2.0
+nbformat==5.10.4
 nest_asyncio @ file:///home/conda/feedstock_root/build_artifacts/nest-asyncio_1733325553580/work
 numpy==2.3.2
 packaging==25.0
@@ -26,6 +32,7 @@ parso @ file:///croot/parso_1733963305961/work
 pexpect @ file:///croot/pexpect_1750072593878/work
 pillow==11.3.0
 platformdirs @ file:///home/conda/feedstock_root/build_artifacts/bld/rattler-build_platformdirs_1756227402/work
+plotly==6.3.0
 prompt-toolkit @ file:///croot/prompt-toolkit_1704404351921/work
 psutil @ file:///croot/psutil_1736367091698/work
 ptyprocess @ file:///tmp/build/80754af9/ptyprocess_1609355006118/work/dist/ptyprocess-0.7.0-py2.py3-none-any.whl
@@ -38,12 +45,15 @@ python-dateutil==2.9.0.post0
 pytz==2025.2
 pyxlsb==1.0.10
 pyzmq @ file:///croot/pyzmq_1734687138743/work
+referencing==0.36.2
+rpds-py==0.27.1
 setuptools==78.1.1
 shapely==2.1.1
 six==1.17.0
 stack-data @ file:///opt/conda/conda-bld/stack_data_1646927590127/work
 tornado @ file:///croot/tornado_1748956929273/work
 traitlets @ file:///croot/traitlets_1718227057033/work
+typing_extensions==4.15.0
 tzdata==2025.2
 wcwidth @ file:///croot/wcwidth_1750352883074/work
 wheel==0.45.1
