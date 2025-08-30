@@ -79,7 +79,6 @@ def prepare_data():
 
     return _pc_merged, _geojson_pc
 
-
 # ---------- plotting ----------
 def plot_permits_choropleth(permits_category='All'):
     pc_merged, geojson_pc = prepare_data()
@@ -90,6 +89,15 @@ def plot_permits_choropleth(permits_category='All'):
 
     color_col = 'permit_count' if permits_category == 'All' else f"{permits_category.lower().replace(' ','_')}_count"
 
+    
+    if "STATE_NAME" in pc_merged.columns:
+        pc_merged = pc_merged[pc_merged["STATE_NAME"].str.upper() == "VICTORIA"]
+        geojson_pc = json.loads(pc_merged.to_json())
+    else:
+        pc_merged = pc_merged.cx[141:150, -39:-34]
+        geojson_pc = json.loads(pc_merged.to_json())
+
+  
     fig = px.choropleth_mapbox(
         pc_merged,
         geojson=geojson_pc,
@@ -97,11 +105,17 @@ def plot_permits_choropleth(permits_category='All'):
         color=color_col,
         featureidkey="properties.name",
         mapbox_style="open-street-map",
-        center={"lat": -25.0, "lon": 133.0},
-        zoom=4,
+        center={"lat": -37.0, "lon": 144.0},   # Victoria center
+        zoom=6,
         hover_name='name',
         hover_data={'permit_count': True, 'total_cost': True},
         opacity=0.6,
     )
-    fig.update_layout(margin={"r":0,"t":0,"l":0,"b":0})
+
+    fig.update_layout(
+        margin={"r":0,"t":0,"l":0,"b":0},
+        mapbox_bounds={"west": 141, "east": 150, "south": -39, "north": -34}
+    )
+
     return fig
+
