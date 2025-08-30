@@ -1,189 +1,358 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Housing Stress Map</title>
+  <meta charset="UTF-8" />
+  <title>Housing Stress, Public Transport, Bicycle Paths & Facilities</title>
   <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    #map { width:100%; height:600px; }
-    #searchBar { margin: 10px; }
+    :root{
+      --bg:#0b1020;
+      --panel:#121831f0;
+      --border:#233055;
+      --accent:#7c9cff;
+      --accent-2:#31d0aa;
+      --text:#e8ecff;
+      --muted:#a9b3d9;
+      --chip:#1a2341;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+
+    .topbar{
+      position:fixed; inset:0 0 auto 0; height:56px;
+      display:flex; align-items:center; gap:12px;
+      background: linear-gradient(180deg, rgba(10,15,30,.95), rgba(10,15,30,.6));
+      border-bottom:1px solid var(--border);
+      padding:8px 14px; z-index:10; backdrop-filter: blur(8px);
+      font-weight:700;
+    }
+    .topbar small{ color:var(--muted); font-weight:500; }
+
+    /* Panel */
+    .panel{
+      position:fixed; top:72px; left:16px; width:360px; max-width:94vw;
+      background: var(--panel); border:1px solid var(--border); border-radius:16px;
+      z-index:9; box-shadow:0 8px 30px rgba(0,0,0,.35);
+      user-select:none;
+    }
+    .panel-header{
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding:8px 12px; border-bottom:1px solid var(--border); cursor:grab;
+    }
+    .panel-header:active{ cursor:grabbing; }
+    .panel-title{ font-weight:700; color:#cdd7ff; font-size:.95rem; }
+    .panel-actions{ display:flex; gap:6px; }
+    .icon-btn{
+      background:#0e1429; border:1px solid var(--border); color:#cdd7ff;
+      width:28px; height:28px; border-radius:8px; display:grid; place-items:center; cursor:pointer;
+    }
+    .panel-body{ padding:12px; }
+    .row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .row + .row{ margin-top:10px; }
+
+    .input{ width:100%; background:#0e1429; color:var(--text); border:1px solid var(--border); border-radius:12px; padding:10px 12px; outline:none; }
+    .input:focus{ border-color: var(--accent); box-shadow:0 0 0 3px #7c9cff33; }
+    .btn{ background:var(--accent); color:#081226; border:1px solid #6f8ef7; padding:10px 14px; border-radius:12px; cursor:pointer; font-weight:700; }
+    .toggles{ display:grid; grid-template-columns:1fr 1fr; gap:8px; background:#0d142b; border:1px solid var(--border); padding:10px; border-radius:12px; margin-top:8px;}
+    .toggle{ display:flex; gap:8px; align-items:center; color:var(--muted); background:#0b1226; border:1px solid #1b2547; padding:8px 10px; border-radius:10px; }
+    .chips{ display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;}
+    .chip{ background:var(--chip); color:#d5ddff; border:1px solid var(--border); padding:6px 10px; border-radius:999px; font-size:.85rem;}
+    .chip strong{ color:var(--accent-2); }
+
+    /* Collapsed mode */
+    .panel.collapsed{
+      width:auto; height:auto; padding:0; border-radius:12px;
+    }
+    .panel.collapsed .panel-body{ display:none; }
+    .panel.collapsed .panel-header{ padding:6px 8px; }
+    .panel.collapsed .panel-title{ font-size:.85rem; }
+    .panel.collapsed .icon-btn{ width:26px;height:26px; }
+
+    /* HUD */
+    #map{ position:fixed; inset:56px 0 0 0; }
+    .spinner{
+      position:fixed; right:16px; top:72px; z-index:11; display:none; align-items:center; gap:10px;
+      background: var(--panel); border:1px solid var(--border); padding:10px 12px; border-radius:12px;
+    }
+    .spin-dot{ width:10px; height:10px; border-radius:50%; background:var(--accent); animation:pulse 1s ease-in-out infinite; }
+    @keyframes pulse{ 0%{transform:scale(1);opacity:1} 50%{transform:scale(.6);opacity:.5} 100%{transform:scale(1);opacity:1} }
+
+    @media (max-width:720px){
+      .panel{ left:10px; right:auto; width:90vw; }
+      .toggles{ grid-template-columns:1fr; }
+    }
   </style>
 </head>
 <body>
-  <h2>Housing Stress & Public Transport Stops</h2>
+  <div class="topbar">20-Minute Neighbourhoods <small>&nbsp;| VIC</small></div>
 
-  <div id="searchBar">
-    <input type="text" id="address" placeholder="Enter an address in Victoria" size="50">
-    <button onclick="searchAddress()">Search</button>
+  <!-- Control Panel -->
+  <div class="panel" id="panel" style="top:72px;left:16px;">
+    <div class="panel-header" id="panelHandle" title="Drag to move">
+      <div class="panel-title">Search & Layers</div>
+      <!-- <div class="panel-actions">
+        <button class="icon-btn" id="collapseBtn" title="Collapse/expand">▾</button>
+      </div> -->
+    </div>
+    <div class="panel-body">
+      <div class="row">
+        <input class="input" id="address" placeholder="Enter an address in Victoria" />
+      </div>
+      <div class="row">
+        <input class="input" id="facilitiesQuery" placeholder="Filter facilities (e.g. pool, library)" />
+      </div>
+      <div class="row">
+        <label for="radiusKm" class="label">Radius</label>
+        <input class="input" id="radiusKm" type="number" value="2" min="0.5" step="0.5" style="max-width:120px"> <label> (km)</label>
+        <button class="btn" id="goBtn">Search</button>
+      </div>
+
+      <div class="toggles">
+        <label class="toggle"><input type="checkbox" id="showPT" checked> Public Transport</label>
+        <label class="toggle"><input type="checkbox" id="showBikes" checked> Bicycle Paths</label>
+        <label class="toggle"><input type="checkbox" id="showSchools" checked> Schools</label>
+        <label class="toggle"><input type="checkbox" id="showFacilities" checked> Community Facilities</label>
+      </div>
+
+      <div class="chips">
+        <div class="chip">Nearest stop: <strong id="chipNearest">—</strong></div>
+        <div class="chip">Schools: <strong id="chipSchools">0</strong></div>
+        <div class="chip">Bike segments: <strong id="chipBikes">0</strong></div>
+        <div class="chip">Facilities: <strong id="chipFacilities">0</strong></div>
+      </div>
+    </div>
   </div>
 
+  <div class="spinner" id="spinner"><div class="spin-dot"></div> Loading…</div>
   <div id="map"></div>
 
   <script>
-    let baseTraces = [];   // all transport stops
-    let layout;            // map layout
-    let allStops = [];     // raw stops for distance check
+    /* ---------------- Panel: drag + collapse ---------------- */
+    (function enablePanelUX(){
+      const panel = document.getElementById('panel');
+      const handle = document.getElementById('panelHandle');
+      // const btn = document.getElementById('collapseBtn');
 
-    // Load local GeoJSON for transport stops
-    fetch("/static/public_transport_stops.geojson")
-      .then(res => res.json())
-      .then(data => {
-        const grouped = {};
-        data.features.forEach(f => {
-          const mode = f.properties.MODE;
-          if (!grouped[mode]) grouped[mode] = { lats: [], lons: [], names: [] };
-          grouped[mode].lats.push(f.geometry.coordinates[1]);
-          grouped[mode].lons.push(f.geometry.coordinates[0]);
-          grouped[mode].names.push(f.properties.STOP_NAME);
+      // Collapse toggle
+      // function setCollapsed(collapsed){
+      //   console.log('I am called')
+      //   panel.classList.toggle('collapsed', collapsed);
+      //   btn.textContent = collapsed ? '▸' : '▾';
+      // }
+      // btn.addEventListener('click', ()=> setCollapsed(!panel.classList.contains('collapsed')));
 
-          // keep raw stops for nearest calculation
-          allStops.push({
-            lat: f.geometry.coordinates[1],
-            lon: f.geometry.coordinates[0],
-            name: f.properties.STOP_NAME,
-            mode: f.properties.MODE
-          });
-        });
+      // // Keyboard shortcut
+      // document.addEventListener('keydown', e=>{
+      //   if(e.key.toLowerCase()==='c') setCollapsed(!panel.classList.contains('collapsed'));
+      // });
 
-        const modeStyles = {
-          "REGIONAL TRAIN":   { color: "red" },
-          "INTERSTATE TRAIN": { color: "purple" },
-          "SKYBUS":           { color: "black" },
-          "METRO TRAIN":      { color: "grey" },
-          "METRO TRAM":       { color: "" },
-          "METRO BUS":        { color: "blue" },
-          "REGIONAL COACH":   { color: "brown" },
-          "REGIONAL BUS":     { color: "orange" }
-        };
+      // Drag within viewport (mouse + touch)
+      let startX, startY, startLeft, startTop, dragging=false;
+      function down(x,y){
+        dragging = true;
+        const rect = panel.getBoundingClientRect();
+        startLeft = rect.left; startTop = rect.top;
+        startX = x; startY = y;
+      }
+      function move(x,y){
+        if(!dragging) return;
+        const dx = x - startX, dy = y - startY;
+        let left = startLeft + dx, top = startTop + dy;
+        // clamp within viewport
+        const pad = 8, vw = window.innerWidth, vh = window.innerHeight;
+        const w = panel.offsetWidth, h = panel.offsetHeight;
+        left = Math.max(pad, Math.min(vw - w - pad, left));
+        top  = Math.max(56 + pad, Math.min(vh - h - pad, top)); // keep below topbar
+        panel.style.left = left + 'px';
+        panel.style.top  = top  + 'px';
+      }
+      function up(){ dragging=false; }
 
-        baseTraces = Object.keys(grouped).map(mode => {
-          const style = modeStyles[mode] || { color: "lightgrey" };
-          return {
-            type: "scattermapbox",
-            lat: grouped[mode].lats,
-            lon: grouped[mode].lons,
-            text: grouped[mode].names,
-            hoverinfo: "text",
-            mode: "markers",
-            name: mode,
-            marker: { size: 7, color: style.color }
-          };
-        });
+      handle.addEventListener('pointerdown', e=>{ handle.setPointerCapture(e.pointerId); down(e.clientX, e.clientY); });
+      handle.addEventListener('pointermove', e=> move(e.clientX, e.clientY));
+      handle.addEventListener('pointerup',   ()=> up());
+      handle.addEventListener('pointercancel',()=> up());
+    })();
+    /* -------------------------------------------------------- */
 
-        layout = {
-          mapbox: {
-            style: "open-street-map",
-            zoom: 7,
-            center: { lat: -37.8, lon: 145.0 }
-          },
-          margin: { r:0, t:0, l:0, b:0 },
-          legend: { orientation: "h", y: -0.2 }
-        };
+    let baseTraces = [], allStops = [], layout;
+    const spinner = document.getElementById("spinner");
+    function showSpinner(v){ spinner.style.display = v ? "flex" : "none"; }
 
-        Plotly.newPlot("map", baseTraces, layout);
+    // Load Public Transport stops once
+    fetch("/api/public_transport").then(r=>r.json()).then(data=>{
+      const grouped = {};
+      for (const f of data.features){
+        const mode = f.properties.MODE;
+        const lat = f.geometry.coordinates[1], lon = f.geometry.coordinates[0];
+        grouped[mode] ??= { lats:[], lons:[], names:[] };
+        grouped[mode].lats.push(lat); grouped[mode].lons.push(lon); grouped[mode].names.push(f.properties.STOP_NAME);
+        allStops.push({ lat, lon, name:f.properties.STOP_NAME, mode });
+      }
+      const modeStyles = {
+        "REGIONAL TRAIN": {color:"red"}, "INTERSTATE TRAIN":{color:"purple"},
+        "SKYBUS":{color:"black"}, "METRO TRAIN":{color:"grey"}, "METRO TRAM":{color:"#00aa88"},
+        "METRO BUS":{color:"blue"}, "REGIONAL COACH":{color:"brown"}, "REGIONAL BUS":{color:"orange"}
+      };
+      baseTraces = Object.keys(grouped).map(mode=>({
+        type:"scattermapbox", lat:grouped[mode].lats, lon:grouped[mode].lons, text:grouped[mode].names,
+        hoverinfo:"text", mode:"markers", name:`PT · ${mode}`,
+        marker:{ size:6, color:(modeStyles[mode]||{color:"lightgrey"}).color },
+        visible: document.getElementById("showPT").checked ? true : "legendonly"
+      }));
+      layout = {
+        mapbox:{ style:"open-street-map", zoom:7, center:{lat:-37.81, lon:144.96} },
+        margin:{r:0,t:0,l:0,b:0}, legend:{ orientation:"h", y:-0.08, font:{color:"#cbd4ff"} },
+        paper_bgcolor:"transparent", plot_bgcolor:"transparent"
+      };
+      Plotly.newPlot("map", baseTraces, layout);
+    });
+
+    // Utilities
+    function haversine(lat1, lon1, lat2, lon2){
+      const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLon=(lon2-lon1)*Math.PI/180;
+      const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+      return 2*R*Math.asin(Math.sqrt(a));
+    }
+    function lineFeatureToLatLonArrays(geometry){
+      const lats=[], lons=[];
+      if(geometry.type==="LineString"){
+        geometry.coordinates.forEach(([lon,lat])=>{ lats.push(lat); lons.push(lon); }); lats.push(null); lons.push(null);
+      } else if(geometry.type==="MultiLineString"){
+        geometry.coordinates.forEach(seg=>{ seg.forEach(([lon,lat])=>{ lats.push(lat); lons.push(lon); }); lats.push(null); lons.push(null); });
+      }
+      return {lats,lons};
+    }
+    function buildBikeTraces(gj){
+      if(!gj||!gj.features) return {traces:[],count:0};
+      const groups={};
+      gj.features.forEach(f=>{
+        const key=f.properties?.InfraType||"Bicycle infrastructure";
+        groups[key]??={lats:[],lons:[],texts:[]};
+        const {lats,lons}=lineFeatureToLatLonArrays(f.geometry);
+        groups[key].lats.push(...lats); groups[key].lons.push(...lons);
+        groups[key].texts.push((f.properties?.Name||"")+(f.properties?.HwyType?` · ${f.properties.HwyType}`:""));
       });
-
-    // Haversine distance (km)
-    function haversine(lat1, lon1, lat2, lon2) {
-      const R = 6371; // km
-      const dLat = (lat2 - lat1) * Math.PI/180;
-      const dLon = (lon2 - lon1) * Math.PI/180;
-      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) *
-                Math.sin(dLon/2) * Math.sin(dLon/2);
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-      return R * c;
+      const traces=Object.keys(groups).map(k=>({
+        type:"scattermapbox", mode:"lines", name:`Bikes · ${k}`,
+        lat:groups[k].lats, lon:groups[k].lons, text:groups[k].texts, hoverinfo:"text",
+        line:{width:3}, visible: document.getElementById("showBikes").checked ? true : "legendonly"
+      }));
+      return {traces,count:gj.features.length};
+    }
+    function buildFacilityTraces(gj){
+      if(!gj||!gj.features) return {traces:[],count:0};
+      const lats=[],lons=[],texts=[];
+      gj.features.forEach(f=>{
+        const c=f?.geometry?.coordinates; if(!Array.isArray(c)||c.length<2) return;
+        const lon=+c[0], lat=+c[1]; if(!isFinite(lat)||!isFinite(lon)) return;
+        lats.push(lat); lons.push(lon);
+        const name=f.properties?.["Facility Name"]||f.properties?.["Name"]||"Facility";
+        const lga=f.properties?.["LGA Name"]||""; texts.push(`${name}${lga?` – ${lga}`:""}`);
+      });
+      if(!lats.length) return {traces:[],count:0};
+      return {
+        count:lats.length,
+        traces:[{
+          type:"scattermapbox", mode:"markers", name:"Community facilities",
+          lat:lats, lon:lons, text:texts, hoverinfo:"text",
+          marker:{ size:13, color:"#ff5bd1" },
+          visible: document.getElementById("showFacilities").checked ? true : "legendonly"
+        }]
+      };
     }
 
-    // 🔹 Search Address + Nearest Stop + Schools
-    function searchAddress() {
-      const addr = document.getElementById("address").value;
-      if (!addr) return alert("Enter an address!");
+    // Search
+    function searchAddress(){
+      const addr=document.getElementById("address").value.trim();
+      const radiusKm=parseFloat(document.getElementById("radiusKm").value)||2.0;
+      const wantPT=document.getElementById("showPT").checked;
+      const wantBikes=document.getElementById("showBikes").checked;
+      const wantSchools=document.getElementById("showSchools").checked;
+      const wantFacilities=document.getElementById("showFacilities").checked;
+      const qText=(document.getElementById("facilitiesQuery").value||"").trim();
+      if(!addr) return;
 
-      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr + " Victoria Australia")}`)
-        .then(res => res.json())
-        .then(results => {
-			console.log(results)
-          if (results.length === 0) {
-            alert("Address not found!");
-            return;
-          }
-          const lat = parseFloat(results[0].lat);
-          const lon = parseFloat(results[0].lon);
+      showSpinner(true);
+      fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addr+" Victoria Australia")}`)
+        .then(r=>r.json()).then(res=>{
+          if(!res.length){ showSpinner(false); return; }
+          const lat=+res[0].lat, lon=+res[0].lon;
+          layout.mapbox.center={lat,lon}; layout.mapbox.zoom=14;
 
-          // Recenter map
-          layout.mapbox.center = { lat: lat, lon: lon };
-          layout.mapbox.zoom = 14;
+          // nearest PT
+          let nearest=null, dMin=Infinity;
+          allStops.forEach(s=>{ const d=haversine(lat,lon,s.lat,s.lon); if(d<dMin){dMin=d; nearest=s;} });
+          document.getElementById("chipNearest").textContent = nearest ? `${nearest.name} (${dMin.toFixed(2)} km)` : "—";
 
-          // Find nearest stop
-          let nearest = null;
-          let minDist = Infinity;
-          allStops.forEach(stop => {
-            const d = haversine(lat, lon, stop.lat, stop.lon);
-            if (d < minDist) {
-              minDist = d;
-              nearest = stop;
-            }
+          // Schools
+          const suburb=res[0].display_name.split(",")[2]?.trim()||"";
+          const schoolsPromise = wantSchools
+            ? fetch(`https://discover.data.vic.gov.au/api/3/action/datastore_search?resource_id=d26bf015-a1e5-48dd-a1d6-8edd4b0a511b&q=${encodeURIComponent(suburb)}`)
+                .then(r=>r.json()).then(api=>{
+                  if(!api.result||!api.result.records.length) return [];
+                  const lats=api.result.records.map(r=>+r.Y), lons=api.result.records.map(r=>+r.X);
+                  const names=api.result.records.map(r=>r.School_Name);
+                  document.getElementById("chipSchools").textContent=String(names.length);
+                  return [{ type:"scattermapbox", lat:lats, lon:lons, text:names,
+                            hoverinfo:"text", mode:"markers", name:"Schools",
+                            marker:{size:15,color:"red"},
+                            visible: wantSchools ? true : "legendonly" }];
+                }) : Promise.resolve([]);
+
+          // Bikes
+          const bikesPromise = wantBikes
+            ? fetch(`/api/bikes_radius?lat=${lat}&lon=${lon}&radius_km=${radiusKm}`)
+                .then(r=>r.json()).then(gj=>{ const {traces,count}=buildBikeTraces(gj); document.getElementById("chipBikes").textContent=String(count); return traces; })
+            : Promise.resolve([]);
+
+          // Facilities with fallback
+          const qStr=qText?`&q=${encodeURIComponent(qText)}`:"";
+          const facilitiesPromise = wantFacilities
+            ? fetch(`/api/facilities_radius?lat=${lat}&lon=${lon}&radius_km=${radiusKm}${qStr}`)
+                .then(r=>r.json()).then(gj=>{
+                  const out=buildFacilityTraces(gj);
+                  if(out.count>0){ document.getElementById("chipFacilities").textContent=String(out.count); return out.traces; }
+                  return fetch(`/api/facilities_all${qStr}`).then(r=>r.json()).then(gjAll=>{
+                    const all=buildFacilityTraces(gjAll);
+                    document.getElementById("chipFacilities").textContent=String(all.count);
+                    if(all.count>0 && layout.mapbox.zoom<7) layout.mapbox.zoom=7;
+                    return all.traces;
+                  });
+                })
+            : Promise.resolve([]);
+
+          Promise.all([schoolsPromise,bikesPromise,facilitiesPromise]).then(([s,b,f])=>{
+            const searchMarker = { type:"scattermapbox", lat:[lat], lon:[lon], text:["📍 "+addr],
+                                   hoverinfo:"text", mode:"markers", name:"Search location",
+                                   marker:{ size:14, color:"#ffd166" } };
+            const nearestMarker = nearest ? { type:"scattermapbox", lat:[nearest.lat], lon:[nearest.lon],
+                                   text:[`Nearest Stop: ${nearest.name} (${nearest.mode})`],
+                                   hoverinfo:"text", mode:"markers", name:"Nearest stop",
+                                   marker:{ size:12, color:"#fff" },
+                                   visible: wantPT ? true : "legendonly" } : [];
+
+            const traces = [
+              ...(wantPT ? baseTraces : baseTraces.map(t=>({...t,visible:"legendonly"}))),
+              searchMarker,
+              ...(nearest ? [nearestMarker] : []),
+              ...(s||[]), ...(b||[]), ...(f||[])
+            ];
+            Plotly.newPlot("map", traces, layout).then(()=> showSpinner(false));
           });
-          const distKm = minDist.toFixed(2);
-
-          // Address marker
-          const searchMarker = {
-            type: "scattermapbox",
-            lat: [lat],
-            lon: [lon],
-            text: ["📍 " + addr],
-            hoverinfo: "text",
-            mode: "markers",
-            name: "Search Location",
-            marker: { size: 14, color: "red" }
-          };
-
-          // Nearest stop marker
-          const nearestMarker = {
-            type: "scattermapbox",
-            lat: [nearest.lat],
-            lon: [nearest.lon],
-            text: [`Nearest Stop: ${nearest.name} (${nearest.mode})<br>Distance: ${distKm} km`],
-            hoverinfo: "text",
-            mode: "markers",
-            name: "Nearest Stop",
-            marker: { size: 14, color: "yellow" }
-          };
-
-          // 🔹 Schools API call
-          // Use 'q' param to search by suburb in the address
-          const suburb = results[0].display_name.split(",")[2]?.trim();
-		  console.log(suburb)
-          fetch(`https://discover.data.vic.gov.au/api/3/action/datastore_search?resource_id=d26bf015-a1e5-48dd-a1d6-8edd4b0a511b&q=${encodeURIComponent(suburb)}`)
-            .then(res => res.json())
-            .then(apiData => {
-				console.log(apiData)
-              let schoolMarkers = [];
-              if (apiData.result && apiData.result.records.length > 0) {
-                const schoolLats = apiData.result.records.map(r => parseFloat(r.Y));
-                const schoolLons = apiData.result.records.map(r => parseFloat(r.X));
-                const schoolNames = apiData.result.records.map(r => r.School_Name);
-				console.log(schoolLats)
-				console.log(schoolLons)
-				console.log(schoolNames)
-                schoolMarkers = [{
-                  type: "scattermapbox",
-                  lat: schoolLats,
-                  lon: schoolLons,
-                  text: schoolNames,
-                  hoverinfo: "text",
-                  mode: "markers",
-                  name: "Schools",
-                  marker: { size: 10, color: "green" }
-                }];
-              }
-
-              // Combine everything
-              Plotly.newPlot("map", [...baseTraces, searchMarker, nearestMarker, ...schoolMarkers], layout);
-            });
-        });
+        }).catch(()=> showSpinner(false));
     }
+
+    // Wire up events
+    document.getElementById("goBtn").addEventListener("click", searchAddress);
+    document.getElementById("address").addEventListener("keydown", e=>{ if(e.key==="Enter") searchAddress(); });
+    ["showPT","showBikes","showSchools","showFacilities"].forEach(id=>{
+      document.getElementById(id).addEventListener("change", ()=>{
+        if (document.getElementById("address").value.trim()) searchAddress();
+      });
+    });
   </script>
 </body>
 </html>
