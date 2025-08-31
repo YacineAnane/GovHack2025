@@ -24,8 +24,8 @@ def analyze_with_openai_client(prompt: str, *,
                                model: str = "gpt-4o-mini",
                                max_tokens: int = 5000,
                                temperature: float = 0.0):
-    api_key = api_key or os.getenv("OPENAI_API_KEY")
-
+    print(api_key)
+    print('----------------------*********')
     if not api_key:
         raise RuntimeError("Set OPENAI_API_KEY or pass api_key=...")
 
@@ -71,3 +71,7 @@ def analyze_with_openai_client(prompt: str, *,
     )
 
     return resp.choices[0].message.content
+
+
+# analyze_with_openai_client(prompt='Analyse',plotly_fig=None, image_path='static/uploads/Screenshot 2025-08-31 at 11.06.24 AM.png' ,model="gpt-4o-mini",max_tokens=5000,temperature=0.0)
+                               
