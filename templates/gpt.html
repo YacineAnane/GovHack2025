@@ -13,7 +13,7 @@
 
     body {
       font-family: "Segoe UI", Roboto, Arial, sans-serif;
-      background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      background: linear-gradient(135deg, #43cea2, #185a9d);
       min-height: 100vh;
       display: flex;
       justify-content: center;
@@ -23,11 +23,11 @@
 
     .container {
       background: #fff;
-      padding: 30px;
-      border-radius: 16px;
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+      padding: 40px;
+      border-radius: 18px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
       width: 100%;
-      max-width: 550px;
+      max-width: 700px;
       animation: fadeIn 0.6s ease;
     }
 
@@ -38,42 +38,50 @@
 
     h1 {
       text-align: center;
-      font-size: 1.8rem;
-      color: #333;
+      font-size: 2rem;
+      color: #222;
       margin-bottom: 25px;
-      font-weight: 600;
+      font-weight: 700;
+      letter-spacing: -0.5px;
     }
 
     form label {
-      font-size: 0.95rem;
-      color: #444;
-      margin-bottom: 6px;
+      font-size: 1rem;
+      color: #333;
+      margin-bottom: 8px;
       display: block;
+      font-weight: 500;
     }
 
-    input[type="text"], input[type="file"] {
+    textarea, input[type="file"] {
       width: 100%;
-      padding: 12px;
-      margin-bottom: 18px;
-      border-radius: 8px;
+      padding: 14px;
+      margin-bottom: 22px;
+      border-radius: 10px;
       border: 1px solid #ccc;
       font-size: 1rem;
       transition: border 0.3s, box-shadow 0.3s;
+      resize: vertical;
     }
 
-    input[type="text"]:focus, input[type="file"]:focus {
-      border-color: #4facfe;
-      box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.25);
+    textarea:focus, input[type="file"]:focus {
+      border-color: #43cea2;
+      box-shadow: 0 0 0 3px rgba(67, 206, 162, 0.25);
       outline: none;
+    }
+
+    textarea {
+      min-height: 120px; /* makes it clearly a question area */
+      line-height: 1.5;
     }
 
     button {
       width: 100%;
-      padding: 14px;
-      font-size: 1rem;
+      padding: 15px;
+      font-size: 1.05rem;
       border: none;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #4facfe, #00f2fe);
+      border-radius: 10px;
+      background: linear-gradient(135deg, #43cea2, #185a9d);
       color: white;
       font-weight: 600;
       cursor: pointer;
@@ -82,24 +90,25 @@
 
     button:hover {
       transform: translateY(-2px);
-      box-shadow: 0 6px 15px rgba(79, 172, 254, 0.4);
+      box-shadow: 0 8px 18px rgba(24, 90, 157, 0.4);
     }
 
     .result {
-      margin-top: 25px;
-      padding: 18px;
-      background: #f0f6ff;
-      border-left: 6px solid #4facfe;
-      border-radius: 8px;
+      margin-top: 30px;
+      padding: 20px;
+      background: #f5faff;
+      border-left: 6px solid #185a9d;
+      border-radius: 10px;
       font-size: 1rem;
       color: #333;
-      line-height: 1.5;
+      line-height: 1.6;
       animation: fadeIn 0.6s ease;
     }
 
     .result h3 {
-      margin-bottom: 10px;
-      color: #2a4d7c;
+      margin-bottom: 12px;
+      color: #185a9d;
+      font-size: 1.2rem;
     }
 
     /* Image preview */
@@ -109,16 +118,17 @@
     }
     .preview img {
       max-width: 100%;
-      border-radius: 10px;
+      border-radius: 12px;
       margin-top: 10px;
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
     }
-	 .error {
+
+    .error {
       margin-top: 15px;
-      padding: 12px;
+      padding: 14px;
       background: #ffe6e6;
       border-left: 6px solid #ff4d4d;
-      border-radius: 8px;
+      border-radius: 10px;
       color: #a60000;
       font-weight: 500;
       display: none;
@@ -127,12 +137,13 @@
 </head>
 <body>
   <div class="container">
-    <h1>Chart/Image</h1>
+    <h1>AI Chart & Image Analyzer</h1>
     <form id="analyze-form" action="/analyze" method="POST" enctype="multipart/form-data">
-      <label for="prompt">Enter your question about the chart/image:</label>
-      <input type="text" id="prompt" name="prompt" placeholder="e.g., What trend do you see?" required>
       
-      <label for="image">Upload an image/chart:</label>
+      <label for="prompt">Enter your question about the chart/image:</label>
+      <textarea id="prompt" name="prompt" placeholder="e.g., What trends do you see in this chart?" required></textarea>
+      
+      <label for="image">Upload an image or chart:</label>
       <input type="file" id="image" name="image" accept="image/png,image/jpeg">
 
       <div class="preview" id="preview">
@@ -140,7 +151,7 @@
         <img id="preview-img" src="">
       </div>
 
-      <button type="submit">Analyze</button>
+      <button type="submit">🔍 Analyze</button>
       <div class="error" id="error-msg">⚠️ Please upload an image before submitting.</div>
     </form>
 
@@ -167,7 +178,7 @@
         reader.onload = e => {
           previewImg.src = e.target.result;
           previewDiv.style.display = "block";
-          errorMsg.style.display = "none"; // clear error if user selects an image
+          errorMsg.style.display = "none"; // clear error
         };
         reader.readAsDataURL(file);
       } else {
@@ -180,7 +191,7 @@
       if (!fileInput.files.length) {
         e.preventDefault();
         errorMsg.style.display = "block";
-        window.scrollTo({ top: 0, behavior: 'smooth' }); // scroll to error
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
   </script>
