@@ -3,7 +3,7 @@ import os, json
 import pandas as pd
 import geopandas as gpd
 import invoke_ai
-# from school_size_vs_building_permits_plots import plot_school_size_vs_building_permits
+from school_size_vs_building_permits_plots import plot_school_size_vs_building_permits
 from crime_vs_permits_plots import plot_crimes_map
 from shapely.geometry import Point, MultiLineString, shape, mapping
 try:
@@ -184,10 +184,11 @@ def to_feature_collection(gdf: gpd.GeoDataFrame) -> dict:
 # ---------- Routes ----------
 @app.route("/")
 def index():
-    # fig= plot_school_size_vs_building_permits("All")
+    plot_fig= plot_school_size_vs_building_permits()
     crime_fig=plot_crimes_map()
+    plot_chart_html = plot_fig.to_html(full_html=False)
     crime_chart_html = crime_fig.to_html(full_html=False)
-    return render_template("index.html", crime_chart_html=crime_chart_html)
+    return render_template("index.html", crime_chart_html=crime_chart_html, plot_chart_html=plot_chart_html)
 
 @app.route("/housing-stress")
 def housing_stress():
