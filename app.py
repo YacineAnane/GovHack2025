@@ -2,6 +2,8 @@ from flask import Flask, render_template, jsonify, request
 import os, json
 import pandas as pd
 import geopandas as gpd
+import invoke_ai
+
 
 from shapely.geometry import Point, MultiLineString, shape, mapping
 try:
@@ -12,8 +14,9 @@ except Exception:
     from shapely.wkb import loads as from_wkb
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
+app.config["UPLOAD_FOLDER"] = "static/uploads"
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
 
-# ---------- Paths ----------
 PARQUET_PATH = os.getenv("BIKE_PARQUET", os.path.join(app.root_path, "data", "bicycle_infra.parquet"))
 FACILITIES_XLSX_PATH = os.path.join(app.root_path, "data", "facilities.xlsx")
 PT_FILE = os.path.join(app.root_path, "static", "public_transport_stops.geojson")
@@ -267,6 +270,76 @@ def health():
         "facilities_rows": int(len(FAC)),
         "facilities_crs": str(FAC.crs) if not FAC.empty else None
     }
+
+
+@app.route("/gpt")
+def gpt_page():
+    return render_template("gpt.html")
+
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    """
+    Handles both API JSON calls and HTML form submissions
+    """
+    prompt = request.form.get("prompt") or (request.json.get("prompt") if request.is_json else None)
+    if not prompt:
+        return jsonify({"error": "Missing prompt"}), 400
+
+    try:
+        # If a file is uploaded from the form
+        if "image" in request.files and request.files["image"].filename != "":
+            file = request.files["image"]
+            save_path = os.path.join(app.config["UPLOAD_FOLDER"], file.filename)
+            file.save(save_path)
+            print('-----------------------------')
+            print(prompt, save_path)
+            print('-----------------------------')
+            answer = invoke_ai.analyze_with_openai_client(
+                prompt=prompt,
+                image_path=save_path
+            )
+            print(answer)
+            print('***********************-----')
+        
+        # API JSON path (demo chart or image_path provided)
+        elif request.is_json:
+            data = request.json
+            if "image_path" in data:
+                answer = invoke_ai.analyze_with_openai_client(
+                    prompt=prompt,
+                    image_path=data["image_path"]
+                )
+            elif data.get("use_demo_chart"):
+                import plotly.express as px
+                import pandas as pd
+
+                df = pd.DataFrame({
+                    "Fruit": ["Apples", "Oranges", "Bananas", "Apples", "Oranges", "Bananas"],
+                    "Amount": [4, 1, 2, 2, 4, 5],
+                    "City": ["SF", "SF", "SF", "Montreal", "Montreal", "Montreal"]
+                })
+                fig = px.bar(df, x="Fruit", y="Amount", color="City", barmode="group")
+
+                answer = invoke_ai.analyze_with_openai_client(
+                    prompt=prompt,
+                    plotly_fig=fig
+                )
+            else:
+                return jsonify({"error": "Provide either 'image_path' or 'use_demo_chart': true"}), 400
+        else:
+            return jsonify({"error": "No valid image provided"}), 400
+
+        # If from HTML form → render back result
+        if not request.is_json:
+            return render_template("gpt.html", result=answer)
+
+        return jsonify({"answer": answer})
+
+    except Exception as e:
+        if request.is_json:
+            return jsonify({"error": str(e)}), 500
+        return render_template("gpt.html", result=f"Error: {e}")
+
 
 
 # ---------- Main ----------
