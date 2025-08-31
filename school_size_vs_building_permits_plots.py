@@ -5,7 +5,7 @@ import plotly.io as pio
 
 # load data
 permits = pd.read_excel('data/20251496-Rawdata-July-20251.xlsb', engine='pyxlsb', sheet_name="Sheet1")  # sheet_name=0 reads the first sheet
-suburb = pd.read_csv('data/geojson/australian-suburbs-master/data/suburbs.csv')
+suburbs = pd.read_csv('data/geojson/australian-suburbs-master/data/suburbs.csv')
 school_locs = pd.read_csv('data/dv402-SchoolLocations2025.csv') 
 enrollment = pd.read_csv('data/dv403-AllSchoolsEnrolments-2025.csv')
 
@@ -35,27 +35,27 @@ school_combined = school_locs.merge(enrollment, left_on="School_Name", right_on=
 
 #Plot data
 
-def plot_school_size_vs_building_permits(school_data, building_permit_data):
+def plot_school_size_vs_building_permits():
     pio.renderers.default = "notebook"  # or "browser"
 
     fig = go.Figure()
 
     # Layer: schools, size by number of kids
     fig.add_trace(go.Scattermapbox(
-        lat=school_data['Y'],
-        lon=school_data['X'],
+        lat=school_combined['Y'],
+        lon=school_combined['X'],
         mode='markers',
         marker=go.scattermapbox.Marker(
-            size=school_data['"Grand Total"'],  # size proportional to number of kids
+            size=school_combined['"Grand Total"'],  # size proportional to number of kids
             sizemode='area',
-            sizeref=school_data['"Grand Total"'].max() / 50,  # scaling
+            sizeref=school_combined['"Grand Total"'].max() / 50,  # scaling
             color='blue',
             opacity=0.6
         ),
         # hover info with school name and total enrolled students
         text=(
-            "School: " + school_data['School_Name'] +
-            "<br>Enrolled students: " + school_data['\"Grand Total\"'].astype(str)
+            "School: " + school_combined['School_Name'] +
+            "<br>Enrolled students: " + school_combined['\"Grand Total\"'].astype(str)
         ),
         hoverinfo="text",
         name='Schools'
@@ -63,11 +63,11 @@ def plot_school_size_vs_building_permits(school_data, building_permit_data):
 
     # Layer: permits (average reported cost per postcode/location + total permits)
     fig.add_trace(go.Scattermapbox(
-        lat=building_permit_data['lat'],
-        lon=building_permit_data['lng'],
+        lat=permits_with_location['lat'],
+        lon=permits_with_location['lng'],
         mode='markers',
         marker=go.scattermapbox.Marker(
-            size=building_permit_data['average_reported_cost'] / 10000,  # scale cost to marker size
+            size=permits_with_location['average_reported_cost'] / 10000,  # scale cost to marker size
             sizemode='area',
             sizeref=2,
             color='red',
@@ -75,8 +75,8 @@ def plot_school_size_vs_building_permits(school_data, building_permit_data):
         ),
         # hover info with average cost + total permits
         text=(
-            "Avg cost: $" + building_permit_data['average_reported_cost'].round(0).astype(str) +
-            "<br>Total permits: " + building_permit_data['total_permits'].astype(str)
+            "Avg cost: $" + permits_with_location['average_reported_cost'].round(0).astype(str) +
+            "<br>Total permits: " + permits_with_location['total_permits'].astype(str)
         ),
         hoverinfo="text",
         name='Building Permits'
@@ -87,8 +87,8 @@ def plot_school_size_vs_building_permits(school_data, building_permit_data):
         mapbox_style='open-street-map',
         mapbox_zoom=10,
         mapbox_center={
-            "lat": school_data['Y'].mean(),
-            "lon": school_data['X'].mean()
+            "lat": school_combined['Y'].mean(),
+            "lon": school_combined['X'].mean()
         },
         margin={"r":0,"t":0,"l":0,"b":0}
     )
