@@ -25,6 +25,9 @@ def analyze_with_openai_client(prompt: str, *,
                                max_tokens: int = 5000,
                                temperature: float = 0.0):
     api_key = api_key or os.getenv("OPENAI_API_KEY")
+    print('-----------------------------')
+    print(api_key)
+    print('-----------------------------')
     if not api_key:
         raise RuntimeError("Set OPENAI_API_KEY or pass api_key=...")
 
