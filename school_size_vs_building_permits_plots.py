@@ -5,9 +5,7 @@ import plotly.io as pio
 
 # load data
 permits = pd.read_excel('data/20251496-Rawdata-July-20251.xlsb', engine='pyxlsb', sheet_name="Sheet1")  # sheet_name=0 reads the first sheet
-
-suburbs = pd.read_csv('data/suburbs.csv') 
-
+suburb = pd.read_csv('data/geojson/australian-suburbs-master/data/suburbs.csv')
 school_locs = pd.read_csv('data/dv402-SchoolLocations2025.csv') 
 enrollment = pd.read_csv('data/dv403-AllSchoolsEnrolments-2025.csv')
 
