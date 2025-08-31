@@ -70,6 +70,8 @@ def analyze_with_openai_client(prompt: str, *,
         temperature=temperature,
     )
 
+    print(resp)
+
     return resp.choices[0].message.content
 
 
