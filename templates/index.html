@@ -10,7 +10,6 @@
     body { font-family: Arial, sans-serif; background: #f8faf9; }
     .hero {
       background: linear-gradient(rgba(30, 82, 22, 0.7), rgba(30, 82, 22, 0.7)),
-                  
                   url("{{ url_for('static', filename='images/background1.png') }}")
                   no-repeat center center/cover;
       color: white; padding: 100px 0; text-align: center;
@@ -29,38 +28,64 @@
     <a href="#challenges" class="btn btn-light btn-lg">Explore Challenges</a>
   </div>
 
-  <div id="challenges" class="section container">
-  <h2 class="text-center mb-5">Our Focus Areas</h2>
-  <div class="row g-4">
-    <!-- Area 1 -->
-    <div class="col-md-6">
-      <div class="card p-4 challenge-card">
-        <h4>#Accessible-communities</h4>
-        <h5>Delivering the 20-Minute Neighbourhood Plan</h5>
-        <p>
-          How might we use open data to understand and improve the ways people move,
-          work, and access services — creating neighbourhoods that are more liveable,
-          inclusive, and resilient?
-        </p>
-        <a href="housing-stress" class="btn btn-success mt-2">Explore</a>
-      </div>
+  <!-- Power BI Reports Section -->
+  <div id="report" class="section container">
+    <h2 class="text-center mb-4">Community Insights Dashboards</h2>
+
+    <!-- Report Selector -->
+    <div class="text-center mb-4">
+      <button class="btn btn-success m-2" onclick="showReport('crime')">Crime Dashboard</button>
+      <button class="btn btn-success m-2" onclick="showReport('school')">School Dashboard</button>
+      <button class="btn btn-success m-2" onclick="showReport('housing')">Housing Dashboard</button>
     </div>
-    <!-- Area 2 -->
-    <div class="col-md-6">
-      <div class="card p-4 challenge-card">
-        <h4>#Building-Victoria's-future</h4>
-        <h5>Better Community Housing & Infrastructure Planning</h5>
-        <p>
-          How might we use multiple datasets, including building permits, to guide
-          communities in planning housing and services — helping residents anticipate
-          and respond to development pressures?
-        </p>
-        <a href="gpt" class="btn btn-success mt-2">Upload Data & Get Insights</a>
+
+    <!-- Report Description -->
+    <div id="report-description" class="mb-3 text-center lead">
+      Click a dashboard above to view insights.
+    </div>
+
+    <!-- Power BI Iframe -->
+    <div class="card p-3">
+      <iframe id="report-frame"
+        width="100%" height="600"
+        src=""
+        frameborder="0" allowFullScreen="true">
+      </iframe>
+    </div>
+  </div>
+
+  <!-- Focus Areas -->
+  <div id="challenges" class="section container">
+    <h2 class="text-center mb-5">Our Focus Areas</h2>
+    <div class="row g-4">
+      <!-- Area 1 -->
+      <div class="col-md-6">
+        <div class="card p-4 challenge-card">
+          <h4>#Accessible-communities</h4>
+          <h5>Delivering the 20-Minute Neighbourhood Plan</h5>
+          <p>
+            How might we use open data to understand and improve the ways people move,
+            work, and access services — creating neighbourhoods that are more liveable,
+            inclusive, and resilient?
+          </p>
+          <a href="housing-stress" class="btn btn-success mt-2">Explore</a>
+        </div>
+      </div>
+      <!-- Area 2 -->
+      <div class="col-md-6">
+        <div class="card p-4 challenge-card">
+          <h4>#Building-Victoria's-future</h4>
+          <h5>Better Community Housing & Infrastructure Planning</h5>
+          <p>
+            How might we use multiple datasets, including building permits, to guide
+            communities in planning housing and services — helping residents anticipate
+            and respond to development pressures?
+          </p>
+          <a href="gpt" class="btn btn-success mt-2">Upload Data & Get Insights</a>
+        </div>
       </div>
     </div>
   </div>
-</div>
-
 
   <!-- Call to Action -->
   <div class="section text-center bg-light">
@@ -92,5 +117,26 @@
   <footer>
     <p>&copy; 2025 GovHack Victoria – Built with Victorian Government Open Data</p>
   </footer>
+
+  <!-- Script to Swap Reports -->
+  <script>
+    function showReport(type) {
+      let frame = document.getElementById("report-frame");
+      let desc = document.getElementById("report-description");
+
+      if (type === "crime") {
+        frame.src = "https://app.powerbi.com/reportEmbed?reportId=09a97dd6-39f9-4b82-8bbf-09b4beb2e12f&autoAuth=true&ctid=f28bcfb6-5d7a-41e6-86af-cacec76f97fe"; // replace with your real link
+        desc.innerHTML = "⚖️ <b>Crime Dashboard</b>: Provides insights into safety and family incidents across Victoria, showing offences, victim reports, and incident trends by LGA.";
+      } 
+      else if (type === "school") {
+        frame.src = "https://app.powerbi.com/reportEmbed?reportId=09a97dd6-39f9-4b82-8bbf-09b4beb2e12f&autoAuth=true&ctid=f28bcfb6-5d7a-41e6-86af-cacec76f97fe"; // replace with your real link
+        desc.innerHTML = "📚 <b>School Dashboard</b>: Highlights school enrolments, capacities, and regional education pressures to support smarter planning.";
+      } 
+      else if (type === "housing") {
+        frame.src = "https://app.powerbi.com/reportEmbed?reportId=09a97dd6-39f9-4b82-8bbf-09b4beb2e12f&autoAuth=true&ctid=f28bcfb6-5d7a-41e6-86af-cacec76f97fe"; // replace with your real link
+        desc.innerHTML = "🏠 <b>Housing Demand Dashboard</b>: Shows priority housing applications, ROI applications, and demand hotspots across Victoria.";
+      }
+    }
+  </script>
 </body>
 </html>
