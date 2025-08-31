@@ -43,6 +43,9 @@
     <div id="report-description" class="mb-3 text-center lead">
       Click a dashboard above to view insights.
     </div>
+    <div>
+    {{ chart_html|safe }}
+  </div>
 
     <!-- Power BI Iframe -->
     <div class="card p-3">
@@ -124,12 +127,12 @@
       let frame = document.getElementById("report-frame");
       let desc = document.getElementById("report-description");
 
-      if (type === "crime") {
-        frame.src = "https://app.powerbi.com/reportEmbed?reportId=09a97dd6-39f9-4b82-8bbf-09b4beb2e12f&autoAuth=true&ctid=f28bcfb6-5d7a-41e6-86af-cacec76f97fe"; // replace with your real link
+      if (type === "school") {
+        frame.src = "https://app.powerbi.com/reportEmbed?reportId=09a97dd6-39f9-4b82-8bbf-09b4beb2e12f&autoAuth=true&ctid=f28bcfb6-5d7a-41e6-86af-cacec76f97fe&pageName=6e9ef23e85ba09625ecd"; // replace with your real link
         desc.innerHTML = "⚖️ <b>Crime Dashboard</b>: Provides insights into safety and family incidents across Victoria, showing offences, victim reports, and incident trends by LGA.";
       } 
-      else if (type === "school") {
-        frame.src = "https://app.powerbi.com/reportEmbed?reportId=09a97dd6-39f9-4b82-8bbf-09b4beb2e12f&autoAuth=true&ctid=f28bcfb6-5d7a-41e6-86af-cacec76f97fe"; // replace with your real link
+      else if (type === "crime") {
+        frame.src = "https://app.powerbi.com/reportEmbed?reportId=09a97dd6-39f9-4b82-8bbf-09b4beb2e12f&autoAuth=true&ctid=f28bcfb6-5d7a-41e6-86af-cacec76f97fe&pageName=49e531a23580c0445009"; // replace with your real link
         desc.innerHTML = "📚 <b>School Dashboard</b>: Highlights school enrolments, capacities, and regional education pressures to support smarter planning.";
       } 
       else if (type === "housing") {
