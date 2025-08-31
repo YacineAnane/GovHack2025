@@ -25,9 +25,7 @@ def analyze_with_openai_client(prompt: str, *,
                                max_tokens: int = 5000,
                                temperature: float = 0.0):
     api_key = api_key or os.getenv("OPENAI_API_KEY")
-    print('-----------------------------')
-    print(api_key)
-    print('-----------------------------')
+
     if not api_key:
         raise RuntimeError("Set OPENAI_API_KEY or pass api_key=...")
 
@@ -49,20 +47,19 @@ def analyze_with_openai_client(prompt: str, *,
     You are a data analyst AI assistant. You will be provided with a chart or plot image and a user prompt.
     Analyze the image and respond to the user's question based on the data shown in the image. Give concise, accurate answers.
     Don't answer questions that are completly unrelated to the image.
+    Don't give unnecessary descruptions of the image.
+    You can use external knowledge to help interpret the data.
     """
     
     messages = [
-        {
-            "role": "system",
-            "content": [{"type": "text", "text": system_prompt}]  
-        },
-        {
-            "role": "user",
-            "content": [
-                {"type": "input_text", "text": prompt},
-                {"type": "image", "image_url": data_url}
-            ]
-        }
+        {"role": "system",
+         "content": [{"type": "text", "text": system_prompt}]},
+        {"role": "user",
+         "content": [
+             {"type": "text", "text": prompt},
+             # image_url must be an object, not a string
+             {"type": "image_url", "image_url": {"url": data_url}}
+         ]}
     ]
 
     # call chat completions (or whichever chat endpoint your client version exposes)
@@ -73,16 +70,4 @@ def analyze_with_openai_client(prompt: str, *,
         temperature=temperature,
     )
 
-    # extract text robustly
-    choice = resp.choices[0]
-    msg = choice.message
-    content = msg.get("content")
-    if isinstance(content, str):
-        return content
-    elif isinstance(content, list):
-        # find first text part
-        for part in content:
-            if part.get("type") in (None, "output_text", "text"):
-                return part.get("text") or part.get("content") or ""
-    # fallback
-    return resp
+    return resp.choices[0].message.content
